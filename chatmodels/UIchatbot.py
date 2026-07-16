@@ -1,156 +1,164 @@
 import streamlit as st
 from dotenv import load_dotenv
 from langchain.chat_models import init_chat_model
+from langchain_core.messages import (
+    SystemMessage,
+    HumanMessage,
+    AIMessage
+)
 
 load_dotenv()
 
-# ---------------- PAGE CONFIG ---------------- #
 st.set_page_config(
-    page_title="AI Chatbot",
+    page_title="AI Mood Chatbot",
     page_icon="🤖",
-    layout="centered",
-    initial_sidebar_state="collapsed"
+    layout="centered"
 )
 
-# ---------------- CUSTOM CSS ---------------- #
+# ---------------- CSS ---------------
+
 st.markdown("""
 <style>
 
 .stApp{
-    background:#0f172a;
+    background:#0F172A;
 }
 
-/* Main content */
 .block-container{
-    max-width:900px;
-    padding-top:1.5rem;
-    padding-bottom:2rem;
+    max-width:850px;
+    padding-top:4rem !important;
 }
 
-/* Header */
 .title{
-    font-size:42px;
-    font-weight:700;
     text-align:center;
     color:white;
-    margin-bottom:0;
+    font-size:42px;
+    font-weight:bold;
 }
 
 .subtitle{
     text-align:center;
-    color:#94a3b8;
-    margin-bottom:30px;
+    color:#94A3B8;
+    margin-bottom:25px;
 }
 
-/* Chat messages */
 [data-testid="stChatMessage"]{
+    background:#1E293B;
+    border-radius:15px;
     padding:15px;
-    border-radius:18px;
-    margin-bottom:15px;
-    border:1px solid #263247;
-    background:#1e293b;
+    margin-bottom:12px;
+    border:1px solid #334155;
 }
 
-/* Chat input */
-[data-testid="stChatInput"]{
-    margin-top:20px;
-}
-
-/* Button */
 .stButton>button{
     width:100%;
     border-radius:10px;
-    height:42px;
-    background:#2563eb;
-    color:white;
-    border:none;
-    font-weight:600;
-}
-
-.stButton>button:hover{
-    background:#1d4ed8;
-}
-
-hr{
-    border:none;
-    height:1px;
-    background:#263247;
-    margin-top:10px;
-    margin-bottom:25px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- MODEL ---------------- #
+# ---------------- Model ---------------- #
+
 model = init_chat_model(
     "groq:llama-3.3-70b-versatile",
     temperature=0.9,
     max_tokens=50
 )
 
-# ---------------- SESSION ---------------- #
+# ---------------- Header ---------------- #
+
+st.markdown("<div class='title'>🤖 AI Mood Chatbot</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Powered by LangChain + Groq</div>", unsafe_allow_html=True)
+
+# ---------------- Session ---------------- #
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-# ---------------- HEADER ---------------- #
-left, right = st.columns([6,1])
+# ---------------- Top Bar ---------------- #
 
-with left:
-    st.markdown(
-        "<div class='title'>🤖 AI Chatbot</div>",
-        unsafe_allow_html=True
+col1, col2 = st.columns([5,1])
+
+with col1:
+    st.markdown("### 🎭 Choose Chatbot Personality")
+
+    mood = st.radio(
+        label="",
+        options=["😊 Happy", "😢 Sad", "😡 Angry"],
+        horizontal=True,
+        label_visibility="collapsed"
     )
-    st.markdown(
-        "<div class='subtitle'>Powered by LangChain + Groq</div>",
-        unsafe_allow_html=True
-    )
 
-with right:
+with col2:
     st.write("")
+    st.write("")
+
     if st.button("🗑 Clear"):
-        st.session_state.messages.clear()
-        st.session_state.history.clear()
+        st.session_state.messages = []
+        st.session_state.chat_history = []
         st.rerun()
 
-st.divider()
+# ---------------- System Prompt ---------------- #
 
-# ---------------- CHAT HISTORY ---------------- #
-chat_box = st.container()
+if mood=="😊 Happy":
+    system_prompt = "You are a happy chatbot. Respond cheerfully, positively and energetically."
 
-with chat_box:
+elif mood=="😢 Sad":
+    system_prompt = "You are a sad chatbot. Respond emotionally and sadly."
 
-    if len(st.session_state.history) == 0:
-        st.info("👋 Welcome! Ask me anything.")
+else:
+    system_prompt = "You are an angry chatbot. Respond in an angry tone without using abusive language."
 
-    for role, message in st.session_state.history:
+# Always keep system prompt first
+messages = [SystemMessage(content=system_prompt)]
 
-        if role == "user":
-            avatar = "👤"
-        else:
-            avatar = "🤖"
+for msg in st.session_state.messages:
+    messages.append(msg)
 
-        with st.chat_message(role, avatar=avatar):
-            st.markdown(message)
+# ---------------- History ---------------- #
 
-# ---------------- INPUT ---------------- #
+for role, text in st.session_state.chat_history:
+
+    avatar="👤"
+
+    if role=="assistant":
+        avatar="🤖"
+
+    with st.chat_message(role, avatar=avatar):
+        st.markdown(text)
+
+# ---------------- Input ---------------- #
+
 prompt = st.chat_input("Type your message...")
 
 if prompt:
 
-    st.session_state.messages.append(prompt)
-    st.session_state.history.append(("user", prompt))
+    human = HumanMessage(content=prompt)
+
+    messages.append(human)
+
+    st.session_state.messages.append(human)
+
+    st.session_state.chat_history.append(
+        ("user",prompt)
+    )
 
     with st.chat_message("user", avatar="👤"):
         st.markdown(prompt)
 
-    response = model.invoke(st.session_state.messages)
+    response = model.invoke(messages)
 
-    st.session_state.messages.append(response.content)
-    st.session_state.history.append(("assistant", response.content))
+    ai = AIMessage(content=response.content)
+
+    st.session_state.messages.append(ai)
+
+    st.session_state.chat_history.append(
+        ("assistant",response.content)
+    )
 
     with st.chat_message("assistant", avatar="🤖"):
         st.markdown(response.content)
